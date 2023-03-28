@@ -26,11 +26,14 @@ kotlin {
     sourceSets {
         val jvmMain by getting {
             dependencies {
-                implementation(compose.desktop.macos_arm64)
-                //implementation(compose.desktop.currentOs)
+                implementation(compose.desktop.currentOs)
                 implementation("com.google.firebase:firebase-admin:9.1.1")
                 implementation ("com.google.zxing:core:3.4.1")
                 implementation ("com.google.zxing:javase:3.4.1")
+                //implementation ("org.slf4j:slf4j-api:1.7.30")
+                //implementation ("org.slf4j:slf4j-simple:1.7.30")
+                implementation ("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.6.0-native-mt")
+
             }
         }
         val jvmTest by getting

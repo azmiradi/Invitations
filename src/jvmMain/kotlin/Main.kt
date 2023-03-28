@@ -1,3 +1,4 @@
+import all_applications.AllApplicationsScreen
 import androidx.compose.desktop.ui.tooling.preview.Preview
 import androidx.compose.material.Button
 import androidx.compose.material.MaterialTheme
@@ -23,24 +24,14 @@ fun App(count: MutableState<String>) {
     var text by remember { mutableStateOf("Hello, World!") }
 
     MaterialTheme {
-        Button(onClick = {
-            text = "Hello, Desktop!"
-        }) {
-            Text(count.value)
-        }
+
     }
 }
 
 fun main() = application {
+    FirebaseConfig.initialize()
 
-   // val printer = Printer()
-    val serviceAccount = FileInputStream("src/jvmMain/resources/serviceAccountKey.json")
 
-    val options = FirebaseOptions.Builder()
-        .setCredentials(GoogleCredentials.fromStream(serviceAccount))
-        .setDatabaseUrl("https://app-easter-default-rtdb.firebaseio.com")
-        .build()
-    FirebaseApp.initializeApp(options)
 
     val ref = FirebaseDatabase.getInstance().getReference("applications")
 
@@ -59,9 +50,11 @@ fun main() = application {
     })
 
     Window(onCloseRequest = ::exitApplication) {
-        App(countapplications)
-        rememberCoroutineScope().launch(Dispatchers.IO){
-           // printer.printDocument("sadasdasdasda")
-        }
+//        AllApplicationsScreen(onNavigate = { one,tow->
+//
+//        })
+         rememberCoroutineScope().launch(Dispatchers.IO) {
+             printQRCode()
+         }
     }
 }

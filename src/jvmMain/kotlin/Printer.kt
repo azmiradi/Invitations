@@ -1,128 +1,86 @@
 import com.google.zxing.BarcodeFormat
 import com.google.zxing.EncodeHintType
 import com.google.zxing.qrcode.QRCodeWriter
-import com.google.zxing.qrcode.decoder.ErrorCorrectionLevel
-import java.awt.print.PrinterJob
-import javax.print.attribute.HashPrintRequestAttributeSet
-import java.awt.print.Printable
-import java.awt.print.PageFormat
-import java.awt.Graphics
+import java.awt.Color
+import java.awt.Font
+import java.awt.Graphics2D
 import java.awt.image.BufferedImage
-import java.awt.print.Printable.NO_SUCH_PAGE
-import java.awt.print.Printable.PAGE_EXISTS
-import java.io.ByteArrayInputStream
-import java.io.ByteArrayOutputStream
-import javax.imageio.ImageIO
-import javax.print.attribute.standard.*
+import java.awt.print.PageFormat
+import java.awt.print.Printable
+import java.awt.print.PrinterException
+import java.awt.print.PrinterJob
+import java.io.IOException
+import java.util.*
+import javax.print.attribute.HashPrintRequestAttributeSet
+import javax.print.attribute.PrintRequestAttributeSet
+import javax.print.attribute.standard.Copies
+import javax.print.attribute.standard.MediaSizeName
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
+import kotlin.coroutines.suspendCoroutine
 
-class Printer {
-    fun printDocument(qrCodeContent:String) {
-        val qrCodeSize = 50
-        val documentWidth = 200
-        val documentHeight = 300
-        val margin = 10
-
-        // Create a new QR Code writer with the appropriate encoding hints
-        val hints = mapOf(
-            EncodeHintType.ERROR_CORRECTION to ErrorCorrectionLevel.L, EncodeHintType.CHARACTER_SET to "UTF-8"
-        )
-        val qrCodeWriter = QRCodeWriter()
-
-        // Generate the QR Code matrix
-        val bitMatrix = qrCodeWriter.encode(qrCodeContent, BarcodeFormat.QR_CODE, qrCodeSize, qrCodeSize, hints)
-
-        // Create a new BufferedImage with the appropriate dimensions
-        val imageWidth = bitMatrix.width
-        val imageHeight = bitMatrix.height
-        val image = BufferedImage(imageWidth, imageHeight, BufferedImage.TYPE_INT_RGB)
-
-        // Draw the QR Code onto the BufferedImage
-        for (x in 0 until imageWidth) {
-            for (y in 0 until imageHeight) {
-                val color = if (bitMatrix[x, y]) 0xFF000000.toInt() else 0xFFFFFFFF.toInt()
-                image.setRGB(x, y, color)
-            }
-        }
-
-        // Create a new BufferedImage for the document with the appropriate dimensions
-        val documentImageWidth = documentWidth - margin * 2
-        val documentImageHeight = documentHeight - margin * 2 - qrCodeSize
-        val documentImage = BufferedImage(documentImageWidth, documentImageHeight, BufferedImage.TYPE_INT_RGB)
-
-        // Draw the QR Code onto the document BufferedImage with the appropriate margin
-        val graphics = documentImage.createGraphics()
-        graphics.drawImage(image, margin, documentImageHeight + margin, null)
-        graphics.dispose()
-
-        // Convert the document BufferedImage to a ByteArray
-        val outputStream = ByteArrayOutputStream()
-        ImageIO.write(documentImage, "png", outputStream)
-        val documentBytes = outputStream.toByteArray()
-
-        // Get the list of available printers
-        val printServices = PrinterJob.lookupPrintServices()
-
-        // Select the first available printer
-        val printService = printServices.firstOrNull()
-
-        // If a printer is available, print the document
-        if (printService != null) {
-            val printRequestAttributeSet = HashPrintRequestAttributeSet().apply {
-                // Set the print quality to high
-                add(PrintQuality.HIGH)
-
-                // Set the paper size to A4
-                add(MediaSizeName.ISO_A4)
-
-                // Set the printable area to include a margin of 10mm on all sides
-                add(
-                    MediaPrintableArea(
-                        margin.toFloat(),
-                        margin.toFloat(),
-                        (documentWidth - margin * 2).toFloat(),
-                        (documentHeight - margin * 2).toFloat(),
-                        MediaPrintableArea.MM
-                    )
-                )
-
-                // Set the orientation to portrait
-                add(OrientationRequested.PORTRAIT)
-
-                // Set the number of copies to 1
-                add(Copies(1))
-
-                // Set the duplex mode to simplex
-                add(Sides.ONE_SIDED)
-
-                // Set the printer name
-                add(PrinterName(printService.name, null))
-            }
-
-            // Create a new PrinterJob and set the print service
-            val printerJob = PrinterJob.getPrinterJob()
-            printerJob.printService = printService
-
-            // Set the document as the Printable and print it
-            val printable = object : Printable {
-                override fun print(graphics: Graphics, pageFormat: PageFormat, pageIndex: Int): Int {
-                    if (pageIndex != 0) {
-                        return NO_SUCH_PAGE
-                    }
-
-                    graphics.drawImage(ImageIO.read(ByteArrayInputStream(documentBytes)), 0, 0, null)
-
-                    return PAGE_EXISTS
+suspend fun printQRCode() = suspendCoroutine<Unit> { continuation ->
+    // Set up QR code
+    val qrCodeContent = "hi"
+    val qrCodeSize = 100 // 2 cm
+    val hintMap = EnumMap<EncodeHintType, Any>(EncodeHintType::class.java)
+    hintMap[EncodeHintType.CHARACTER_SET] = "UTF-8"
+    val qrCodeWriter = QRCodeWriter()
+    val bitMatrix = qrCodeWriter.encode(qrCodeContent, BarcodeFormat.QR_CODE, qrCodeSize, qrCodeSize, hintMap)
+    val qrCodeImage = BufferedImage(qrCodeSize, qrCodeSize, BufferedImage.TYPE_INT_RGB)
+    qrCodeImage.createGraphics().apply {
+        color = Color.WHITE
+        fillRect(0, 0, qrCodeSize, qrCodeSize)
+        color = Color.BLACK
+        for (x in 0 until qrCodeSize) {
+            for (y in 0 until qrCodeSize) {
+                if (bitMatrix[x, y]) {
+                    drawRect(x, y, 1, 1)
                 }
             }
-            printerJob.setPrintable(printable)
+        }
+        dispose()
+    }
 
-            try {
-                printerJob.print(printRequestAttributeSet)
-            } catch (e: Exception) {
-                e.printStackTrace()
-            }
+    // Set up printer
+    val pageFormat = PrinterJob.getPrinterJob().defaultPage(PageFormat())
+    val paper = pageFormat.paper
+    paper.setSize(18.8 * 72.0, 13.5 * 72.0) // Set paper size to 18.8 cm x 13.5 cm
+    paper.setImageableArea(72.0, 72.0, 18.8 * 72.0 - 2 * 72.0, 13.5 * 72.0 - 2 * 72.0) // Set 1 cm margins
+    pageFormat.paper = paper
+    pageFormat.orientation = PageFormat.PORTRAIT
+
+    val printRequestAttributeSet = HashPrintRequestAttributeSet().apply {
+        add(MediaSizeName.ISO_A4)
+        add(Copies(1))
+    }
+
+    // Set up printing task
+    val printable = Printable { graphics, _, pageIndex ->
+        if (pageIndex != 0) {
+            Printable.NO_SUCH_PAGE
         } else {
-            println("No printers available.")
+            graphics as Graphics2D
+            graphics.translate(72, 72) // 1 cm margin
+            graphics.font = Font("Arial", Font.PLAIN, 20)
+            graphics.drawString(qrCodeContent, 0, 0)
+            graphics.drawImage(qrCodeImage, 0, 60, null) // Position QR code at bottom
+            Printable.PAGE_EXISTS
         }
     }
+
+    // Print document in background thread using coroutines
+    val printJob = object : Thread() {
+        override fun run() {
+            try {
+                val printerJob = PrinterJob.getPrinterJob()
+                printerJob.setPrintable(printable, pageFormat)
+                printerJob.print(printRequestAttributeSet)
+                continuation.resume(Unit)
+            } catch (e: PrinterException) {
+                continuation.resumeWithException(e)
+            }
+        }
+    }
+    printJob.start()
 }
